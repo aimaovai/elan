@@ -6,7 +6,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-elan}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-elan_local_only}
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - elan-postgres:/var/lib/postgresql/data
     healthcheck:

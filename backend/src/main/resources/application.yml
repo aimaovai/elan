@@ -7,7 +7,7 @@ spring:
   application:
     name: elan-api
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/elan}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5433/elan}
     username: ${SPRING_DATASOURCE_USERNAME:elan}
     password: ${SPRING_DATASOURCE_PASSWORD:elan_local_only}
   jpa:
