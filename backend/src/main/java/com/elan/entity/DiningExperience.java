@@ -20,6 +20,7 @@ public class DiningExperience {
     @Column(nullable = false, precision = 8, scale = 2) public BigDecimal price;
     @Column(name = "wine_pairing_price", precision = 8, scale = 2) public BigDecimal winePairingPrice;
     @Column(name = "course_count", nullable = false) public int courseCount;
+    @Column(name = "reservation_duration_minutes", nullable = false) public int reservationDurationMinutes;
     @Column(name = "start_date", nullable = false) public LocalDate startDate;
     @Column(name = "end_date", nullable = false) public LocalDate endDate;
     @Column(nullable = false, length = 20) public String status;

@@ -10,6 +10,28 @@ import type {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080/api/v1";
 
+export async function apiMutation<T>(path: string, method: "POST" | "PATCH" | "DELETE", body?: unknown,
+                                      headers?: Record<string, string>): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method,
+    cache: "no-store",
+    headers: { Accept: "application/json", ...(body ? { "Content-Type": "application/json" } : {}), ...headers },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+  if (!response.ok) {
+    let message = `The request could not be completed (${response.status}).`;
+    try {
+      const payload = (await response.json()) as { message?: string };
+      if (payload.message) message = payload.message;
+    } catch {
+      // Retain the status-based message when the server returns no JSON body.
+    }
+    throw new Error(message);
+  }
+  if (response.status === 204) return undefined as T;
+  return (await response.json()) as T;
+}
+
 export async function apiGet<T>(path: string): Promise<ApiResult<T>> {
   try {
     const response = await fetch(`${API_BASE_URL}${path}`, {
