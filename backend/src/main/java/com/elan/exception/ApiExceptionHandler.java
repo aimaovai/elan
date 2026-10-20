@@ -2,11 +2,13 @@ package com.elan.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -18,6 +20,24 @@ public class ApiExceptionHandler {
     public ResponseEntity<Map<String, Object>> notFound(ResourceNotFoundException exception,
                                                          HttpServletRequest request) {
         return response(HttpStatus.NOT_FOUND, "Not Found", exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(BusinessRuleException.class)
+    public ResponseEntity<Map<String, Object>> businessRule(BusinessRuleException exception,
+                                                             HttpServletRequest request) {
+        Map<String, Object> body = new LinkedHashMap<>(response(exception.status(), "Business rule violation",
+                exception.getMessage(), request).getBody());
+        body.put("code", exception.code());
+        return ResponseEntity.status(exception.status()).body(body);
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<Map<String, Object>> invalidRequest(MethodArgumentNotValidException exception,
+                                                               HttpServletRequest request) {
+        String message = exception.getBindingResult().getFieldErrors().stream()
+                .map(error -> error.getField() + ": " + error.getDefaultMessage())
+                .distinct().collect(java.util.stream.Collectors.joining("; "));
+        return response(HttpStatus.BAD_REQUEST, "Validation Error", message, request);
     }
 
     @ExceptionHandler(Exception.class)

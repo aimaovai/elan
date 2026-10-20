@@ -10,7 +10,7 @@
 
 ## Architecture
 
-The `frontend/` application renders public pages and retrieves dynamic menus, experiences, dining spaces, gallery content, and restaurant details from the Java API. The `backend/` owns domain rules and persistence; controllers expose DTOs, services map JPA aggregates, and repositories query PostgreSQL. Flyway owns schema changes and repeatable demo data. Public endpoints are read-only; reservations, inquiries, and administration remain Phase 2 work.
+The `frontend/` application renders public pages and retrieves dynamic menus, experiences, dining spaces, gallery content, and restaurant details from the Java API. The `backend/` owns domain rules and persistence; controllers expose DTOs, services map JPA aggregates, and repositories query PostgreSQL. Flyway owns schema changes and repeatable demo data. Phase 2 adds transactional reservation booking, token-authorized guest management, and private dining inquiries; administrative operations remain unimplemented.
 
 See [docs/architecture.md](docs/architecture.md), [docs/database-schema.md](docs/database-schema.md), [docs/api-documentation.md](docs/api-documentation.md), and [docs/phase-status.md](docs/phase-status.md).
 
@@ -86,7 +86,7 @@ All address, contact, chef, hours, and hospitality content is fictional demonstr
 
 ## Phase roadmap
 
-- **Phase 2:** Reservation availability and booking lifecycle, private-dining inquiry submissions, secure admin authentication, and content management. The read API, domain entities, DTO boundary, and route composition are extension points; no booking or inquiry is represented as operational.
+- **Phase 2 (in progress):** Reservation availability, booking and guest self-service, and private-dining inquiry submission are implemented for the fictional demo. Secure admin authentication/content management, notifications, request idempotency, and operational reporting remain future work.
 - **Phase 3:** Deposit/payment processing, advanced policies, analytics, image management, E2E coverage, CI/CD, and deployment.
 
 ## Troubleshooting

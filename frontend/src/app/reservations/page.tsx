@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { PageHero } from "@/components/layout/PageHero";
 import { getRestaurant } from "@/lib/api/client";
 import { ContentState } from "@/components/ui/ContentState";
+import { ReservationFlow } from "@/components/reservations/ReservationFlow";
 
 export const metadata: Metadata = {
   title: "Reservations",
@@ -17,18 +18,20 @@ export default async function ReservationsPage() {
       <section className="page-container visit-layout">
         <div className="visit-panel">
           <span className="eyebrow">RESERVATION INFORMATION</span>
-          <h2>Online reservations are being prepared for this demonstration experience.</h2>
-          <p>No availability is displayed and no booking is being accepted. The future booking journey will include party size, date, time, guest details, preferences, and confirmation after a real availability service is implemented.</p>
+          <h2>A considered evening begins here.</h2>
+          <p>Choose a date and party size to see live availability from the restaurant’s service hours, seating inventory, booking window, and existing reservations.</p>
           {!result.data ? <ContentState message={result.error} /> : <div className="reservation-notice"><h2>Reservation policy</h2><p>{result.data.reservationPolicy}</p></div>}
+          <p className="demo-note">Élan is fictional. Confirmations are stored in the demonstration system and do not reserve a real restaurant.</p>
         </div>
         <div className="visit-panel">
           <span className="eyebrow">BEFORE YOUR VISIT</span>
           <h2>A few thoughtful notes.</h2>
           <div className="reservation-notice"><h2>Dress</h2><p>{result.data?.dressCode ?? "Dress guidance is unavailable while restaurant information is offline."}</p></div>
-          <div className="reservation-notice"><h2>The tasting menu</h2><p>Allow time for the full progression. Please share dietary needs in advance when the booking service becomes available.</p></div>
-          <div className="reservation-notice"><h2>Access</h2><p>Accessibility information is part of this demonstration. Please contact the restaurant only once the fictional venue is operational.</p></div>
+          <div className="reservation-notice"><h2>The tasting menu</h2><p>Allow time for the full progression. Please share dietary needs in advance with your reservation.</p></div>
+          <div className="reservation-notice"><h2>Access</h2><p>Accessibility information is part of this demonstration. Please contact the fictional venue for further details.</p></div>
         </div>
       </section>
+      <section className="page-container booking-section"><ReservationFlow /></section>
     </>
   );
 }
