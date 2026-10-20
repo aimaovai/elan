@@ -26,7 +26,13 @@ export function ReservationManagement() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    const savedToken = sessionStorage.getItem("elan-reservation-management-token") ?? "";
+    const url = new URL(window.location.href);
+    const linkedToken = url.hash.startsWith("#token=") ? decodeURIComponent(url.hash.slice(7)) : null;
+    const savedToken = linkedToken ?? sessionStorage.getItem("elan-reservation-management-token") ?? "";
+    if (linkedToken) {
+      sessionStorage.setItem("elan-reservation-management-token", linkedToken);
+      window.history.replaceState(null, "", `${url.pathname}${url.search}`);
+    }
     setToken(savedToken);
     if (!savedToken) {
       setError("This browser session does not contain a reservation management link. Open this page from your booking confirmation.");

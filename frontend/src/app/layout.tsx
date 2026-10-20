@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { Cormorant_Garamond, Manrope } from "next/font/google";
 import "./globals.css";
-import { SiteHeader } from "@/components/layout/SiteHeader";
-import { SiteFooter } from "@/components/layout/SiteFooter";
+import { AppChrome } from "@/components/layout/AppChrome";
 
 const serif = Cormorant_Garamond({ subsets: ["latin"], variable: "--font-editorial", weight: ["400", "500", "600"] });
 const sans = Manrope({ subsets: ["latin"], variable: "--font-sans", weight: ["400", "500", "600", "700"] });
@@ -26,9 +25,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en">
       <body className={`${serif.variable} ${sans.variable}`}>
         <a className="skip-link" href="#main-content">Skip to content</a>
-        <SiteHeader />
+        <AppChrome />
         <main id="main-content">{children}</main>
-        <SiteFooter />
       </body>
     </html>
   );

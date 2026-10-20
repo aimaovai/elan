@@ -26,7 +26,23 @@ Reservation creation accepts guest name, email, phone, date/time, party size, op
 
 Availability and reservation creation use the restaurant timezone (`America/Los_Angeles` in the demo seed), Tuesday-Saturday service periods, a 90-day advance window, a two-hour minimum lead time, 30-minute slots, and 120-minute default service durations. Experiences can have a configured duration and optional table restrictions; the seeded Chef's Counter is restricted to the counter table. Service settings and table inventory are stored in PostgreSQL. The booking transaction takes pessimistic locks on the active table rows in stable ID order before rechecking overlaps and saving, serializing allocation decisions for the small seeded inventory. Overlap uses half-open time intervals. Conflicts return HTTP 409 with `RESERVATION_SLOT_UNAVAILABLE`.
 
-Inquiry requests validate the selected space's active state and capacity. A successful response has `isConfirmedEvent: false`; no event is booked and no inventory is blocked. This demo does not send email.
+Inquiry requests validate the selected space's active state and capacity. A successful response has `isConfirmedEvent: false`; no event is booked and no inventory is blocked. Notification outbox events are created transactionally; log delivery is simulated unless the backend is explicitly configured for Resend.
+
+## Administration and authentication
+
+The `/api/v1/admin/**` APIs require a secure Spring Security session and role authorization. Login first obtains a CSRF token from `GET /admin/auth/csrf`, then sends it in `X-XSRF-TOKEN` with `POST /admin/auth/login`. The session cookie is HttpOnly; the frontend sends credentials and never stores session credentials in localStorage. `POST /admin/auth/logout` also requires CSRF. `GET /admin/auth/me` returns the active administrator's display name and role.
+
+`ADMIN` has full access; `MANAGER` can manage operational and content data; `STAFF` can manage reservations and inquiries but not content or configuration; `DEMO_VIEWER` can only read sanitized reservation/dashboard views. Admin reservation operations include manual creation (`POST /admin/reservations` with an idempotency key), status/notes changes, rescheduling (`PATCH /admin/reservations/{id}/modify`), and table reassignment (`PATCH /admin/reservations/{id}/table`). Rescheduling uses the standard availability allocator; reassignment checks capacity, experience restrictions, and overlaps. Representative admin APIs also include `/admin/dashboard`, `/admin/tables`, `/admin/menus`, `/admin/experiences`, `/admin/private-dining/inquiries`, `/admin/settings`, and `/admin/notifications`.
+
+Admins can manage weekly service periods at `/admin/settings/service-periods` and dated full/partial closures at `/admin/settings/blocked-dates`. Service-period overlaps are rejected, and edits that exclude upcoming reservations return HTTP 409. Closures that overlap an upcoming reservation or another closure are rejected. Settings changes that would invalidate upcoming reservations are also rejected. Admin mutations require CSRF protection and create audit entries.
+
+The default rate limiter is process-local for the local/demo deployment. Do not use multiple backend replicas without replacing it with a shared store.
+
+## Email delivery
+
+Configure Resend exclusively in the backend environment. `EMAIL_DELIVERY_MODE=log` is the default and marks events `SIMULATED`, not delivered. `test` routes only to `RESEND_TEST_RECIPIENT`; `live` sends to the configured guest/admin recipient only when `RESEND_ENABLED=true`. Live delivery also requires `RESEND_API_KEY` and a verified configured sender. Delivery statuses distinguish provider acceptance (`SENT`) from inbox delivery; they do not claim inbox delivery.
+
+The outbox preserves one provider idempotency key per immutable event/payload. On retries, Resend may deduplicate only during its documented 24-hour retention. The system therefore avoids claiming exactly-once delivery in ambiguous cases beyond that period. Guest management links are encrypted at rest in the outbox when `ELAN_NOTIFICATION_ENCRYPTION_KEY` is configured; they use a URL fragment and the frontend removes it before making an API request.
 
 Mutation validation errors return HTTP 400. Business errors include a stable `code` field and use HTTP 409 or 422 as appropriate. Private guest details are never returned by public content endpoints.
 

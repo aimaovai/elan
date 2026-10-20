@@ -28,6 +28,7 @@ public class PrivateDiningInquiry {
     @Column(name = "special_requests", length = 1000) public String specialRequests;
     @Column(name = "preferred_contact_method", nullable = false, length = 20) public String preferredContactMethod;
     @Column(nullable = false, length = 20) public String status;
+    @Column(name = "internal_notes", length = 2000) public String internalNotes;
     @Column(name = "created_at", nullable = false) public LocalDateTime createdAt;
     @Column(name = "updated_at", nullable = false) public LocalDateTime updatedAt;
 }

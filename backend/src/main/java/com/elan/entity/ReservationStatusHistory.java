@@ -13,6 +13,7 @@ public class ReservationStatusHistory {
     @Column(name = "old_status", length = 20) public String oldStatus;
     @Column(name = "new_status", nullable = false, length = 20) public String newStatus;
     @Column(name = "change_source", nullable = false, length = 20) public String changeSource;
+    @Column(name = "administrator_id") public UUID administratorId;
     @Column(length = 500) public String reason;
     @Column(name = "changed_at", nullable = false) public LocalDateTime changedAt;
 }

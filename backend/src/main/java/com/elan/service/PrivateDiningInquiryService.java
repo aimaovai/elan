@@ -18,6 +18,8 @@ import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
+import com.elan.notification.NotificationService;
 
 @Service
 public class PrivateDiningInquiryService {
@@ -25,13 +27,21 @@ public class PrivateDiningInquiryService {
     private final PrivateDiningInquiryRepository inquiries;
     private final PrivateDiningSpaceRepository spaces;
     private final RestaurantSettingsRepository settings;
+    private final NotificationService notifications;
     private final SecureRandom random = new SecureRandom();
 
+    @Autowired
     public PrivateDiningInquiryService(PrivateDiningInquiryRepository inquiries, PrivateDiningSpaceRepository spaces,
-                                       RestaurantSettingsRepository settings) {
+                                       RestaurantSettingsRepository settings, NotificationService notifications) {
         this.inquiries = inquiries;
         this.spaces = spaces;
         this.settings = settings;
+        this.notifications = notifications;
+    }
+
+    public PrivateDiningInquiryService(PrivateDiningInquiryRepository inquiries, PrivateDiningSpaceRepository spaces,
+                                       RestaurantSettingsRepository settings) {
+        this(inquiries, spaces, settings, null);
     }
 
     @Transactional
@@ -82,6 +92,7 @@ public class PrivateDiningInquiryService {
         inquiry.createdAt = now;
         inquiry.updatedAt = now;
         inquiries.save(inquiry);
+        if (notifications != null) notifications.inquiry(inquiry);
         return new PrivateDiningInquiryResponse(inquiry.referenceNumber, inquiry.status, false);
     }
 

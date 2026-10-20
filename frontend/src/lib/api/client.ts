@@ -35,7 +35,7 @@ export async function apiMutation<T>(path: string, method: "POST" | "PATCH" | "D
 export async function apiGet<T>(path: string): Promise<ApiResult<T>> {
   try {
     const response = await fetch(`${API_BASE_URL}${path}`, {
-      next: { revalidate: 300 },
+      cache: "no-store",
       headers: { Accept: "application/json" },
     });
     if (!response.ok) {

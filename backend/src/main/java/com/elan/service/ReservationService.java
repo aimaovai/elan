@@ -12,8 +12,10 @@ import java.time.*;
 import java.util.*;
 import java.util.Base64;
 import org.springframework.http.HttpStatus;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.elan.notification.NotificationService;
 
 @Service
 public class ReservationService {
@@ -28,13 +30,18 @@ public class ReservationService {
     private final ReservationIdempotencyRecordRepository idempotencyRecords;
     private final RestaurantSettingsRepository settings;
     private final DiningExperienceRepository experiences;
+    private final ReservationManagementTokenRepository managementTokens;
+    private final NotificationService notifications;
     private final SecureRandom random = new SecureRandom();
 
+    @Autowired
     public ReservationService(DiningTableRepository tables, RestaurantServicePeriodRepository periods,
                               RestaurantBlockedDateRepository blockedDates, ReservationRepository reservations,
                               ReservationGuestRepository guests, ReservationStatusHistoryRepository history,
                               ReservationIdempotencyRecordRepository idempotencyRecords,
-                              RestaurantSettingsRepository settings, DiningExperienceRepository experiences) {
+                              RestaurantSettingsRepository settings, DiningExperienceRepository experiences,
+                              ReservationManagementTokenRepository managementTokens,
+                              NotificationService notifications) {
         this.tables = tables;
         this.periods = periods;
         this.blockedDates = blockedDates;
@@ -44,6 +51,17 @@ public class ReservationService {
         this.idempotencyRecords = idempotencyRecords;
         this.settings = settings;
         this.experiences = experiences;
+        this.managementTokens = managementTokens;
+        this.notifications = notifications;
+    }
+
+    public ReservationService(DiningTableRepository tables, RestaurantServicePeriodRepository periods,
+                              RestaurantBlockedDateRepository blockedDates, ReservationRepository reservations,
+                              ReservationGuestRepository guests, ReservationStatusHistoryRepository history,
+                              ReservationIdempotencyRecordRepository idempotencyRecords,
+                              RestaurantSettingsRepository settings, DiningExperienceRepository experiences) {
+        this(tables, periods, blockedDates, reservations, guests, history, idempotencyRecords, settings,
+                experiences, null, null);
     }
 
     @Transactional(readOnly = true)
@@ -73,6 +91,17 @@ public class ReservationService {
 
     @Transactional
     public ReservationResponse create(ReservationRequest request, String idempotencyKey) {
+        return create(request, idempotencyKey, "CUSTOMER", null);
+    }
+
+    @Transactional
+    public ReservationResponse createForAdministrator(ReservationRequest request, String idempotencyKey,
+                                                       UUID administratorId) {
+        return create(request, idempotencyKey, "ADMINISTRATOR", administratorId);
+    }
+
+    private ReservationResponse create(ReservationRequest request, String idempotencyKey,
+                                       String source, UUID administratorId) {
         RestaurantSettings config = configuration();
         ZoneId zone = ZoneId.of(config.restaurantTimezone);
         if (idempotencyKey == null || idempotencyKey.length() < 16 || idempotencyKey.length() > 128) {
@@ -82,6 +111,7 @@ public class ReservationService {
         LocalDateTime now = LocalDateTime.now(zone);
         LocalDateTime idempotencyNow = LocalDateTime.now(ZoneOffset.UTC);
         idempotencyRecords.deleteByExpiresAtBefore(idempotencyNow);
+        if (managementTokens != null) managementTokens.deleteByExpiresAtBefore(idempotencyNow);
         String keyHash = hashToken(idempotencyKey);
         String requestHash = hashToken(request.toString());
         ReservationResponse replay = replayIfPresent(keyHash, requestHash, idempotencyNow);
@@ -131,7 +161,8 @@ public class ReservationService {
         reservation.createdAt = now;
         reservation.updatedAt = now;
         reservations.save(reservation);
-        recordStatus(reservation, null, "CONFIRMED", "CUSTOMER", null, now);
+        storeManagementToken(reservation, token, LocalDateTime.now(ZoneOffset.UTC).plusDays(180));
+        recordStatus(reservation, null, "CONFIRMED", source, null, now, administratorId);
         ReservationIdempotencyRecord record = idempotencyRecords.lockByKeyHash(keyHash).orElseGet(() -> {
             ReservationIdempotencyRecord created = new ReservationIdempotencyRecord();
             created.id = UUID.randomUUID();
@@ -143,6 +174,7 @@ public class ReservationService {
         record.createdAt = idempotencyNow;
         record.expiresAt = idempotencyNow.plusHours(24);
         idempotencyRecords.save(record);
+        if (notifications != null) notifications.reservation(reservation, "RESERVATION_CONFIRMATION", token);
         return response(reservation, token);
     }
 
@@ -158,6 +190,7 @@ public class ReservationService {
         record.reservation.managementTokenExpiresAt = LocalDateTime.now(ZoneOffset.UTC).plusDays(180);
         record.reservation.updatedAt = now;
         reservations.save(record.reservation);
+        storeManagementToken(record.reservation, rotatedToken, record.reservation.managementTokenExpiresAt);
         return response(record.reservation, rotatedToken);
     }
 
@@ -175,6 +208,17 @@ public class ReservationService {
     @Transactional
     public ManagedReservation modify(String token, ReservationChanges changes) {
         Reservation reservation = authorizedReservation(token);
+        return modifyReservation(reservation, changes);
+    }
+
+    @Transactional
+    public ManagedReservation modifyByAdministrator(UUID reservationId, ReservationChanges changes) {
+        Reservation reservation = reservations.findById(reservationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Reservation", reservationId.toString()));
+        return modifyReservation(reservation, changes);
+    }
+
+    private ManagedReservation modifyReservation(Reservation reservation, ReservationChanges changes) {
         ensureCanChange(reservation);
         List<DiningTable> lockedTables = tables.lockAllActiveTables();
         RestaurantSettings config = configuration();
@@ -201,7 +245,40 @@ public class ReservationService {
         reservation.specialRequests = trimToNull(changes.specialRequests());
         reservation.updatedAt = LocalDateTime.now(zone);
         reservations.save(reservation);
+        if (notifications != null) notifications.reservation(reservation, "RESERVATION_MODIFICATION", null);
         return toManaged(reservation, config);
+    }
+
+    @Transactional
+    public ManagedReservation reassignTableByAdministrator(UUID reservationId, UUID tableId) {
+        Reservation reservation = reservations.findById(reservationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Reservation", reservationId.toString()));
+        ensureCanChange(reservation);
+        List<DiningTable> activeTables = tables.lockAllActiveTables();
+        DiningTable table = activeTables.stream().filter(candidate -> candidate.id.equals(tableId)).findFirst()
+                .orElseThrow(() -> new BusinessRuleException("TABLE_NOT_AVAILABLE",
+                        "Choose an active table.", HttpStatus.UNPROCESSABLE_ENTITY));
+        if (table.minimumCapacity > reservation.partySize || table.maximumCapacity < reservation.partySize)
+            throw new BusinessRuleException("TABLE_CAPACITY_MISMATCH",
+                    "The selected table cannot accommodate this party size.", HttpStatus.UNPROCESSABLE_ENTITY);
+        if (reservation.experience != null) {
+            List<UUID> restricted = tables.findRestrictedTableIds(reservation.experience.id);
+            if (!restricted.isEmpty() && !restricted.contains(table.id))
+                throw new BusinessRuleException("TABLE_EXPERIENCE_RESTRICTION",
+                        "The selected experience is restricted to different tables.", HttpStatus.UNPROCESSABLE_ENTITY);
+        }
+        boolean occupied = reservations.findByTable_IdAndReservationDateAndStatusIn(
+                        table.id, reservation.reservationDate, BLOCKING_STATUSES).stream()
+                .filter(other -> !other.id.equals(reservation.id))
+                .anyMatch(other -> other.startTime.isBefore(reservation.endTime)
+                        && reservation.startTime.isBefore(other.endTime));
+        if (occupied)
+            throw new BusinessRuleException("TABLE_SLOT_UNAVAILABLE",
+                    "The selected table is already assigned during this interval.", HttpStatus.CONFLICT);
+        reservation.table = table;
+        reservation.updatedAt = LocalDateTime.now(ZoneId.of(configuration().restaurantTimezone));
+        reservations.save(reservation);
+        return toManaged(reservation, configuration());
     }
 
     @Transactional
@@ -224,6 +301,7 @@ public class ReservationService {
         reservation.updatedAt = timestamp;
         reservations.save(reservation);
         recordStatus(reservation, oldStatus, "CANCELLED", "CUSTOMER", reservation.cancellationReason, timestamp);
+        if (notifications != null) notifications.reservation(reservation, "RESERVATION_CANCELLATION", null);
     }
 
     private ManagedReservation toManaged(Reservation reservation, RestaurantSettings config) {
@@ -238,9 +316,26 @@ public class ReservationService {
         if (token == null || token.length() < 40 || token.length() > 64) {
             throw invalidManagementToken();
         }
-        return reservations.findByManagementTokenHash(hashToken(token))
+        String hash = hashToken(token);
+        if (managementTokens != null) {
+            Optional<ReservationManagementToken> savedToken =
+                    managementTokens.findByTokenHashAndExpiresAtAfter(hash, LocalDateTime.now(ZoneOffset.UTC));
+            if (savedToken.isPresent()) return savedToken.get().reservation;
+        }
+        return reservations.findByManagementTokenHash(hash)
                 .filter(value -> value.managementTokenExpiresAt.isAfter(LocalDateTime.now(ZoneOffset.UTC)))
                 .orElseThrow(this::invalidManagementToken);
+    }
+
+    private void storeManagementToken(Reservation reservation, String token, LocalDateTime expiresAt) {
+        if (managementTokens == null) return;
+        ReservationManagementToken entry = new ReservationManagementToken();
+        entry.id = UUID.randomUUID();
+        entry.reservation = reservation;
+        entry.tokenHash = hashToken(token);
+        entry.expiresAt = expiresAt;
+        entry.createdAt = LocalDateTime.now(ZoneOffset.UTC);
+        managementTokens.save(entry);
     }
 
     private void ensureCanChange(Reservation reservation) {
@@ -365,12 +460,18 @@ public class ReservationService {
 
     private void recordStatus(Reservation reservation, String oldStatus, String newStatus, String source,
                               String reason, LocalDateTime now) {
+        recordStatus(reservation, oldStatus, newStatus, source, reason, now, null);
+    }
+
+    private void recordStatus(Reservation reservation, String oldStatus, String newStatus, String source,
+                              String reason, LocalDateTime now, UUID administratorId) {
         ReservationStatusHistory entry = new ReservationStatusHistory();
         entry.id = UUID.randomUUID();
         entry.reservation = reservation;
         entry.oldStatus = oldStatus;
         entry.newStatus = newStatus;
         entry.changeSource = source;
+        entry.administratorId = administratorId;
         entry.reason = reason;
         entry.changedAt = now;
         history.save(entry);

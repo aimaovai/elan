@@ -1,5 +1,13 @@
 server:
   port: ${PORT:8080}
+  servlet:
+    session:
+      timeout: ${ADMIN_SESSION_TIMEOUT:30m}
+      cookie:
+        http-only: true
+        secure: ${SESSION_COOKIE_SECURE:false}
+        same-site: ${SESSION_COOKIE_SAME_SITE:lax}
+        path: /
   error:
     include-message: never
     include-stacktrace: never
@@ -31,3 +39,18 @@ springdoc:
     path: /api-docs
 elan:
   frontend-origin: ${FRONTEND_ORIGIN:http://localhost:3000}
+  admin:
+    bootstrap-email: ${ELAN_ADMIN_EMAIL:}
+    bootstrap-password: ${ELAN_ADMIN_PASSWORD:}
+    bootstrap-display-name: ${ELAN_ADMIN_DISPLAY_NAME:ÉLAN Administrator}
+  email:
+    delivery-mode: ${EMAIL_DELIVERY_MODE:log}
+    resend-enabled: ${RESEND_ENABLED:false}
+    resend-api-key: ${RESEND_API_KEY:}
+    from-email: ${RESEND_FROM_EMAIL:}
+    from-name: ${RESEND_FROM_NAME:ÉLAN Reservations}
+    reply-to: ${RESEND_REPLY_TO:}
+    test-recipient: ${RESEND_TEST_RECIPIENT:}
+    private-dining-admin-email: ${PRIVATE_DINING_ADMIN_EMAIL:}
+    public-url: ${APP_PUBLIC_URL:http://localhost:3000}
+    encryption-key: ${ELAN_NOTIFICATION_ENCRYPTION_KEY:}

@@ -14,8 +14,10 @@ public class WebConfig implements WebMvcConfigurer {
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/api/v1/**")
                 .allowedOrigins(frontendOrigin)
-                .allowedMethods("GET", "POST", "PATCH", "DELETE")
-                .allowedHeaders("Content-Type", "Accept", "Idempotency-Key", "X-Reservation-Management-Token")
+                .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE")
+                .allowedHeaders("Content-Type", "Accept", "Idempotency-Key", "X-Reservation-Management-Token",
+                        "X-XSRF-TOKEN")
+                .allowCredentials(true)
                 .maxAge(3600);
     }
 }
